@@ -169,3 +169,4 @@ if __name__ == '__main__':
     print(f'benchmark end : {end_time}')
     with open(os.path.join(folder_name,"system_info.txt"), "a") as f:
         f.writelines(f'benchmark end : {end_time}\n')
+        
