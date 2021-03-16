@@ -25,7 +25,7 @@ MODEL_LIST = {
     models.densenet: models.densenet.__all__[1:],
     models.squeezenet: models.squeezenet.__all__[1:],
     models.vgg: models.vgg.__all__[1:],
-    models.mobilenet:models.mobilenet.__all__[1:],
+    #models.mobilenet:models.mobilenet.__all__[1:], #error 
     models.shufflenetv2:models.shufflenetv2.__all__[1:]
 }
 
