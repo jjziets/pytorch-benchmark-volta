@@ -5,4 +5,4 @@ bash -c 'apt -y update;apt -y upgrade; apt install -y python3; apt install -y py
 
 another way is to spin up a docker container and run the benshmark in there
 
-sudo docker run --gpus all -it --shm-size=1g --ulimit memlock=-1 --rm pytorch/pytorch:1.8.1-cuda10.2-cudnn7-runtime  /bin/bash
+sudo docker run --gpus all -it --shm-size=5g --ulimit memlock=-1 --rm pytorch/pytorch:1.9.0-cuda11.1-cudnn8-runtime  /bin/bash
