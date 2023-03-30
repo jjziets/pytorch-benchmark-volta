@@ -1,4 +1,4 @@
-This benchmark runs in image pytorch/pytorch:latest
+This benchmark runs in image pytorch/pytorch:1.9.0-cuda11.1-cudnn8-runtime
 I suggest running it on the host machine in a docker container as below
 
 sudo docker run --gpus all -it --shm-size=5g --ulimit memlock=-1 --rm pytorch/pytorch:1.9.0-cuda11.1-cudnn8-runtime  /bin/bash
