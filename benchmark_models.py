@@ -21,7 +21,12 @@ torch.backends.cudnn.benchmark = True
 
 # Function to list all callable model constructors in a given module
 def list_models_from_module(module):
-    return [getattr(module, m) for m in dir(module) if callable(getattr(module, m)) and not m.startswith("__")]
+    model_constructors = []
+    for attribute_name in dir(module):
+        attribute = getattr(module, attribute_name)
+        if inspect.isclass(attribute) and issubclass(attribute, torch.nn.Module):
+            model_constructors.append(attribute)
+    return model_constructors
 
 # Automatically populating MODEL_LIST
 MODEL_LIST = {
@@ -30,9 +35,10 @@ MODEL_LIST = {
     models.densenet: list_models_from_module(models.densenet),
     models.squeezenet: list_models_from_module(models.squeezenet),
     models.vgg: list_models_from_module(models.vgg),
-    models.mobilenet: list_models_from_module(models.mobilenet),  # Assuming mobilenet is now included
+    models.mobilenet: list_models_from_module(models.mobilenet),
     models.shufflenetv2: list_models_from_module(models.shufflenetv2),
 }
+
 precisions=["float","half",'double']
 # For post-voltaic architectures, there is a possibility to use tensor-core at half precision.
 # Due to the gradient overflow problem, apex is recommended for practical use.
