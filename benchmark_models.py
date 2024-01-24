@@ -98,7 +98,11 @@ def inference(precision='float'):
     with torch.no_grad():
         for model_type in MODEL_LIST.keys():
             for model_name in MODEL_LIST[model_type]:
-                model = getattr(model_type, model_name)(pretrained=False)
+                # Check if the 'pretrained' argument is accepted by the model constructor
+                if 'pretrained' in inspect.signature(getattr(model_type, model_name)).parameters:
+                    model = getattr(model_type, model_name)(pretrained=False)
+                else:
+                    model = getattr(model_type, model_name)()
                 if args.NUM_GPU > 1:
                     model = nn.DataParallel(model,device_ids=range(args.NUM_GPU))
                 model=getattr(model,precision)()
