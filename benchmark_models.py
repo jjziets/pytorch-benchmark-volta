@@ -24,9 +24,13 @@ def list_models_from_module(module):
     model_constructors = []
     for attribute_name in dir(module):
         attribute = getattr(module, attribute_name)
+        # Check if the attribute is a class and a subclass of torch.nn.Module
         if inspect.isclass(attribute) and issubclass(attribute, torch.nn.Module):
-            model_constructors.append(attribute)
+            # Further check to avoid adding abstract classes or utility classes
+            if not inspect.isabstract(attribute) and attribute.__module__ == module.__name__:
+                model_constructors.append(attribute)
     return model_constructors
+
 
 # Automatically populating MODEL_LIST
 MODEL_LIST = {
