@@ -70,9 +70,9 @@ def train(precision='single'):
         for model_name in MODEL_LIST[model_type]:
             # Check if the 'pretrained' argument is accepted by the model constructor
             if 'pretrained' in inspect.signature(getattr(model_type, model_name)).parameters:
-                model = getattr(model_type, model_name)() to model = model_name()
+                model = model_constructor(pretrained=False)
             else:
-                model = getattr(model_type, model_name)()
+                model = model_constructor()
             if args.NUM_GPU > 1:
                 model = nn.DataParallel(model,device_ids=range(args.NUM_GPU))
             model=getattr(model,precision)()
@@ -103,9 +103,9 @@ def inference(precision='float'):
             for model_name in MODEL_LIST[model_type]:
                 # Check if the 'pretrained' argument is accepted by the model constructor
                 if 'pretrained' in inspect.signature(getattr(model_type, model_name)).parameters:
-                    model = getattr(model_type, model_name)() to model = model_name()
+                    model = model_constructor(pretrained=False)
                 else:
-                    model = getattr(model_type, model_name)()
+                    model = model_constructor()
                 if args.NUM_GPU > 1:
                     model = nn.DataParallel(model,device_ids=range(args.NUM_GPU))
                 model=getattr(model,precision)()
