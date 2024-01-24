@@ -67,65 +67,113 @@ def train(precision='single'):
     criterion = nn.CrossEntropyLoss()
     benchmark = {}
     for model_type in MODEL_LIST.keys():
-        for model_name in MODEL_LIST[model_type]:
-            # Check if the 'pretrained' argument is accepted by the model constructor
-            if 'pretrained' in inspect.signature(getattr(model_type, model_name)).parameters:
+        for model_constructor in MODEL_LIST[model_type]:
+            # Instantiate the model
+            if 'pretrained' in inspect.signature(model_constructor).parameters:
                 model = model_constructor(pretrained=False)
             else:
                 model = model_constructor()
+
+            # Convert model to the correct precision
+            if precision == 'half':
+                model = model.half()
+            elif precision == 'double':
+                model = model.double()
+            else:  # default to 'float' / 'single'
+                model = model.float()
+
             if args.NUM_GPU > 1:
-                model = nn.DataParallel(model,device_ids=range(args.NUM_GPU))
-            model=getattr(model,precision)()
-            model=model.to('cuda')
+                model = nn.DataParallel(model, device_ids=range(args.NUM_GPU))
+            model = model.to('cuda')
+
             durations = []
+            model_name = model_constructor.__name__
             print(f'Benchmarking Training {precision} precision type {model_name} ')
-            for step,img in enumerate(rand_loader):
-                img=getattr(img,precision)()
+
+            for step, img in enumerate(rand_loader):
+                # Convert image to the correct precision
+                if precision == 'half':
+                    img = img.half()
+                elif precision == 'double':
+                    img = img.double()
+                else:  # default to 'float' / 'single'
+                    img = img.float()
+
+                img = img.to('cuda')
                 torch.cuda.synchronize()
                 start = time.time()
+
                 model.zero_grad()
-                prediction = model(img.to('cuda'))
+                prediction = model(img)
                 loss = criterion(prediction, target)
                 loss.backward()
+
                 torch.cuda.synchronize()
                 end = time.time()
                 if step >= args.WARM_UP:
-                    durations.append((end - start)*1000)
+                    durations.append((end - start) * 1000)
+
             print(f'{model_name} model average train time : {sum(durations)/len(durations)}ms')
             del model
             benchmark[model_name] = durations
+
     return benchmark
+
 
 def inference(precision='float'):
     benchmark = {}
     with torch.no_grad():
         for model_type in MODEL_LIST.keys():
-            for model_name in MODEL_LIST[model_type]:
-                # Check if the 'pretrained' argument is accepted by the model constructor
-                if 'pretrained' in inspect.signature(getattr(model_type, model_name)).parameters:
+            for model_constructor in MODEL_LIST[model_type]:
+                # Instantiate the model
+                if 'pretrained' in inspect.signature(model_constructor).parameters:
                     model = model_constructor(pretrained=False)
                 else:
                     model = model_constructor()
+
+                # Convert model to the correct precision
+                if precision == 'half':
+                    model = model.half()
+                elif precision == 'double':
+                    model = model.double()
+                else:  # default to 'float' / 'single'
+                    model = model.float()
+
                 if args.NUM_GPU > 1:
-                    model = nn.DataParallel(model,device_ids=range(args.NUM_GPU))
-                model=getattr(model,precision)()
-                model=model.to('cuda')
+                    model = nn.DataParallel(model, device_ids=range(args.NUM_GPU))
+                model = model.to('cuda')
                 model.eval()
+
                 durations = []
+                model_name = model_constructor.__name__
                 print(f'Benchmarking Inference {precision} precision type {model_name} ')
-                for step,img in enumerate(rand_loader):
-                    img=getattr(img,precision)()
+
+                for step, img in enumerate(rand_loader):
+                    # Convert image to the correct precision
+                    if precision == 'half':
+                        img = img.half()
+                    elif precision == 'double':
+                        img = img.double()
+                    else:  # default to 'float' / 'single'
+                        img = img.float()
+
+                    img = img.to('cuda')
                     torch.cuda.synchronize()
                     start = time.time()
-                    model(img.to('cuda'))
+
+                    model(img)
+
                     torch.cuda.synchronize()
                     end = time.time()
                     if step >= args.WARM_UP:
-                        durations.append((end - start)*1000)
+                        durations.append((end - start) * 1000)
+
                 print(f'{model_name} model average inference time : {sum(durations)/len(durations)}ms')
                 del model
                 benchmark[model_name] = durations
+
     return benchmark
+
 
 f"{platform.uname()}\n{psutil.cpu_freq()}\ncpu_count: {psutil.cpu_count()}\nmemory_available: {psutil.virtual_memory().available}"
 
