@@ -70,7 +70,7 @@ def train(precision='single'):
         for model_name in MODEL_LIST[model_type]:
             # Check if the 'pretrained' argument is accepted by the model constructor
             if 'pretrained' in inspect.signature(getattr(model_type, model_name)).parameters:
-                model = getattr(model_type, model_name)(pretrained=False)
+                model = getattr(model_type, model_name)() to model = model_name()
             else:
                 model = getattr(model_type, model_name)()
             if args.NUM_GPU > 1:
@@ -103,7 +103,7 @@ def inference(precision='float'):
             for model_name in MODEL_LIST[model_type]:
                 # Check if the 'pretrained' argument is accepted by the model constructor
                 if 'pretrained' in inspect.signature(getattr(model_type, model_name)).parameters:
-                    model = getattr(model_type, model_name)(pretrained=False)
+                    model = getattr(model_type, model_name)() to model = model_name()
                 else:
                     model = getattr(model_type, model_name)()
                 if args.NUM_GPU > 1:
