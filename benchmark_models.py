@@ -24,13 +24,15 @@ def list_models_from_module(module):
     model_constructors = []
     for attribute_name in dir(module):
         attribute = getattr(module, attribute_name)
-        # Check if the attribute is a class, a subclass of torch.nn.Module, and not an abstract class
-        if inspect.isclass(attribute) and issubclass(attribute, torch.nn.Module) and not inspect.isabstract(attribute):
-            # Exclude utility functions or classes that might be included in the module
-            if 'pretrained' in inspect.signature(attribute).parameters:
-                model_constructors.append(attribute)
+        if inspect.isclass(attribute) and issubclass(attribute, torch.nn.Module):
+            try:
+                sig = inspect.signature(attribute)
+                if 'pretrained' in sig.parameters:
+                    model_constructors.append(attribute)
+            except ValueError:
+                # This handles cases where inspect.signature cannot process a class
+                pass
     return model_constructors
-
 # Automatically populating MODEL_LIST
 MODEL_LIST = {
     models.mnasnet: list_models_from_module(models.mnasnet),
@@ -39,9 +41,10 @@ MODEL_LIST = {
     models.squeezenet: list_models_from_module(models.squeezenet),
     models.vgg: list_models_from_module(models.vgg),
     models.mobilenet: list_models_from_module(models.mobilenet),
-    models.shufflenetv2: list_models_from_module(models.shufflenetv2),
+    models.shufflenetv2: list_models_from_module(models.shufflenetv2)
 }
 
+print('Model List:', MODEL_LIST)
 
 precisions=["float","half",'double']
 # For post-voltaic architectures, there is a possibility to use tensor-core at half precision.
@@ -75,64 +78,8 @@ def train(precision='single'):
     """use fake image for training speed test"""
     target = torch.LongTensor(args.BATCH_SIZE).random_(args.NUM_CLASSES).cuda()
     criterion = nn.CrossEntropyLoss()
-    benchmark = {}
-    for model_type in MODEL_LIST.keys():
-        for model_constructor in MODEL_LIST[model_type]:
-            # Instantiate the model
-            if 'pretrained' in inspect.signature(model_constructor).parameters:
-                model = model_constructor(pretrained=False)
-            else:
-                model = model_constructor()
-
-            # Convert model to the correct precision
-            if precision == 'half':
-                model = model.half()
-            elif precision == 'double':
-                model = model.double()
-            else:  # default to 'float' / 'single'
-                model = model.float()
-
-            if args.NUM_GPU > 1:
-                model = nn.DataParallel(model, device_ids=range(args.NUM_GPU))
-            model = model.to('cuda')
-
-            durations = []
-            model_name = model_constructor.__name__
-            print(f'Benchmarking Training {precision} precision type {model_name} ')
-
-            for step, img in enumerate(rand_loader):
-                # Convert image to the correct precision
-                if precision == 'half':
-                    img = img.half()
-                elif precision == 'double':
-                    img = img.double()
-                else:  # default to 'float' / 'single'
-                    img = img.float()
-
-                img = img.to('cuda')
-                torch.cuda.synchronize()
-                start = time.time()
-
-                model.zero_grad()
-                prediction = model(img)
-                loss = criterion(prediction, target)
-                loss.backward()
-
-                torch.cuda.synchronize()
-                end = time.time()
-                if step >= args.WARM_UP:
-                    durations.append((end - start) * 1000)
-
-            print(f'{model_name} model average train time : {sum(durations)/len(durations)}ms')
-            del model
-            benchmark[model_name] = durations
-
-    return benchmark
-
-
-def inference(precision='float'):
-    benchmark = {}
-    with torch.no_grad():
+    try:
+        benchmark = {}
         for model_type in MODEL_LIST.keys():
             for model_constructor in MODEL_LIST[model_type]:
                 # Instantiate the model
@@ -141,7 +88,7 @@ def inference(precision='float'):
                 else:
                     model = model_constructor()
 
-                # Convert model to the correct precision
+            # Convert model to the correct precision
                 if precision == 'half':
                     model = model.half()
                 elif precision == 'double':
@@ -152,11 +99,10 @@ def inference(precision='float'):
                 if args.NUM_GPU > 1:
                     model = nn.DataParallel(model, device_ids=range(args.NUM_GPU))
                 model = model.to('cuda')
-                model.eval()
 
                 durations = []
                 model_name = model_constructor.__name__
-                print(f'Benchmarking Inference {precision} precision type {model_name} ')
+                print(f'Benchmarking Training {precision} precision type {model_name} ')
 
                 for step, img in enumerate(rand_loader):
                     # Convert image to the correct precision
@@ -171,10 +117,71 @@ def inference(precision='float'):
                     torch.cuda.synchronize()
                     start = time.time()
 
-                    model(img)
+                    model.zero_grad()
+                    prediction = model(img)
+                    loss = criterion(prediction, target)
+                    loss.backward()
 
                     torch.cuda.synchronize()
                     end = time.time()
+                    if step >= args.WARM_UP:
+                        durations.append((end - start) * 1000)
+
+                print(f'{model_name} model average train time : {sum(durations)/len(durations)}ms')
+                del model
+                benchmark[model_name] = durations
+
+    except Exception as e:
+        print(f'An error occurred in {precision} precision: {e}')
+    return benchmark
+
+
+def inference(precision='float'):
+    benchmark = {}
+    with torch.no_grad():
+        try:
+            for model_type in MODEL_LIST.keys():
+                for model_constructor in MODEL_LIST[model_type]:
+                    # Instantiate the model
+                    if 'pretrained' in inspect.signature(model_constructor).parameters:
+                        model = model_constructor(pretrained=False)
+                    else:
+                        model = model_constructor()
+
+                # Convert model to the correct precision
+                    if precision == 'half':
+                        model = model.half()
+                    elif precision == 'double':
+                        model = model.double()
+                    else:  # default to 'float' / 'single'
+                        model = model.float()
+
+                    if args.NUM_GPU > 1:
+                        model = nn.DataParallel(model, device_ids=range(args.NUM_GPU))
+                    model = model.to('cuda')
+                    model.eval()
+
+                    durations = []
+                    model_name = model_constructor.__name__
+                    print(f'Benchmarking Inference {precision} precision type {model_name} ')
+
+                    for step, img in enumerate(rand_loader):
+                        # Convert image to the correct precision
+                        if precision == 'half':
+                            img = img.half()
+                        elif precision == 'double':
+                            img = img.double()
+                        else:  # default to 'float' / 'single'
+                            img = img.float()
+
+                        img = img.to('cuda')
+                        torch.cuda.synchronize()
+                        start = time.time()
+
+                        model(img)
+
+                        torch.cuda.synchronize()
+                        end = time.time()
                     if step >= args.WARM_UP:
                         durations.append((end - start) * 1000)
 
@@ -182,7 +189,9 @@ def inference(precision='float'):
                 del model
                 benchmark[model_name] = durations
 
-    return benchmark
+        except Exception as e:
+            print(f'An error occurred in {precision} precision: {e}') 
+        return benchmark
 
 
 f"{platform.uname()}\n{psutil.cpu_freq()}\ncpu_count: {psutil.cpu_count()}\nmemory_available: {psutil.virtual_memory().available}"
