@@ -21,17 +21,7 @@ torch.backends.cudnn.benchmark = True
 
 # Function to list all callable model constructors in a given module
 def list_models_from_module(module):
-    model_constructors = {}
-    for model_name in module.__all__:
-        model_constructor = getattr(module, model_name)
-        if callable(model_constructor):
-            # Check if the constructor needs additional arguments
-            args = inspect.signature(model_constructor).parameters
-            model_constructors[model_name] = {
-                "constructor": model_constructor,
-                "requires_args": len(args) > 1  # excluding 'self'
-            }
-    return model_constructors
+    return [getattr(module, m) for m in module.__all__ if callable(getattr(module, m)) and not m[0].isupper()]
 
 # Automatically populating MODEL_LIST
 MODEL_LIST = {
@@ -80,56 +70,47 @@ def train(precision='single'):
     criterion = nn.CrossEntropyLoss()
     try:
         benchmark = {}
-        for model_type in MODEL_LIST.keys():
-            for model_constructor in MODEL_LIST[model_type]:
-                model_args = {}
-                # Check if 'alpha' is a required parameter and set it to 1 if needed
-                if 'alpha' in inspect.signature(model_constructor).parameters:
-                    model_args['alpha'] = 1
-                    # Instantiate the model
-                if 'pretrained' in inspect.signature(model_constructor).parameters:
-                    model = model_constructor(pretrained=False, **model_args)
-                else:
-                    model = model_constructor(**model_args)
-
+        for model_name in MODEL_LIST[model_type]:
+            model_constructor = MODEL_LIST[model_type][model_name]
+            model = model_constructor(pretrained=False)
             # Convert model to the correct precision
-                if precision == 'half':
-                    model = model.half()
-                elif precision == 'double':
-                    model = model.double()
-                else:  # default to 'float' / 'single'
-                    model = model.float()
+        if precision == 'half':
+            model = model.half()
+        elif precision == 'double':
+            model = model.double()
+        else:  # default to 'float' / 'single'
+            model = model.float()
 
-                if args.NUM_GPU > 1:
-                    model = nn.DataParallel(model, device_ids=range(args.NUM_GPU))
+            if args.NUM_GPU > 1:
+                model = nn.DataParallel(model, device_ids=range(args.NUM_GPU))
                 model = model.to('cuda')
 
                 durations = []
                 model_name = model_constructor.__name__
                 print(f'Benchmarking Training {precision} precision type {model_name} ')
 
-                for step, img in enumerate(rand_loader):
-                    # Convert image to the correct precision
-                    if precision == 'half':
-                        img = img.half()
-                    elif precision == 'double':
-                        img = img.double()
-                    else:  # default to 'float' / 'single'
-                        img = img.float()
+            for step, img in enumerate(rand_loader):
+                # Convert image to the correct precision
+                if precision == 'half':
+                    img = img.half()
+                elif precision == 'double':
+                    img = img.double()
+                else:  # default to 'float' / 'single'
+                    img = img.float()
 
-                    img = img.to('cuda')
-                    torch.cuda.synchronize()
-                    start = time.time()
+                img = img.to('cuda')
+                torch.cuda.synchronize()
+                start = time.time()
 
-                    model.zero_grad()
-                    prediction = model(img)
-                    loss = criterion(prediction, target)
-                    loss.backward()
+                model.zero_grad()
+                prediction = model(img)
+                loss = criterion(prediction, target)
+                loss.backward()
 
-                    torch.cuda.synchronize()
-                    end = time.time()
-                    if step >= args.WARM_UP:
-                        durations.append((end - start) * 1000)
+                torch.cuda.synchronize()
+                end = time.time()
+                if step >= args.WARM_UP:
+                    durations.append((end - start) * 1000)
 
                 print(f'{model_name} model average train time : {sum(durations)/len(durations)}ms')
                 del model
