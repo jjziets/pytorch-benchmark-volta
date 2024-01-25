@@ -21,27 +21,27 @@ torch.backends.cudnn.benchmark = True
 
 # Function to list all callable model constructors in a given module
 def list_models_from_module(module):
-    model_constructors = []
-    for attribute_name in dir(module):
-        attribute = getattr(module, attribute_name)
-        if inspect.isclass(attribute) and issubclass(attribute, torch.nn.Module):
-            try:
-                sig = inspect.signature(attribute)
-                if 'pretrained' in sig.parameters:
-                    model_constructors.append(attribute)
-            except ValueError:
-                # This handles cases where inspect.signature cannot process a class
-                pass
+    model_constructors = {}
+    for model_name in module.__all__:
+        model_constructor = getattr(module, model_name)
+        if callable(model_constructor):
+            # Check if the constructor needs additional arguments
+            args = inspect.signature(model_constructor).parameters
+            model_constructors[model_name] = {
+                "constructor": model_constructor,
+                "requires_args": len(args) > 1  # excluding 'self'
+            }
     return model_constructors
+
 # Automatically populating MODEL_LIST
 MODEL_LIST = {
-    models.mnasnet: list_models_from_module(models.mnasnet),
-    models.resnet: list_models_from_module(models.resnet),
-    models.densenet: list_models_from_module(models.densenet),
-    models.squeezenet: list_models_from_module(models.squeezenet),
-    models.vgg: list_models_from_module(models.vgg),
-    models.mobilenet: list_models_from_module(models.mobilenet),
-    models.shufflenetv2: list_models_from_module(models.shufflenetv2)
+    'mnasnet': list_models_from_module(models.mnasnet),
+    'resnet': list_models_from_module(models.resnet),
+    'densenet': list_models_from_module(models.densenet),
+    'squeezenet': list_models_from_module(models.squeezenet),
+    'vgg': list_models_from_module(models.vgg),
+    'mobilenet': list_models_from_module(models.mobilenet),
+    'shufflenetv2': list_models_from_module(models.shufflenetv2)
 }
 
 print('Model List:', MODEL_LIST)
@@ -82,11 +82,15 @@ def train(precision='single'):
         benchmark = {}
         for model_type in MODEL_LIST.keys():
             for model_constructor in MODEL_LIST[model_type]:
-                # Instantiate the model
+                model_args = {}
+                # Check if 'alpha' is a required parameter and set it to 1 if needed
+                if 'alpha' in inspect.signature(model_constructor).parameters:
+                    model_args['alpha'] = 1
+                    # Instantiate the model
                 if 'pretrained' in inspect.signature(model_constructor).parameters:
-                    model = model_constructor(pretrained=False)
+                    model = model_constructor(pretrained=False, **model_args)
                 else:
-                    model = model_constructor()
+                    model = model_constructor(**model_args)
 
             # Convert model to the correct precision
                 if precision == 'half':
