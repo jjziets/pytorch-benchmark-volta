@@ -14,7 +14,7 @@ os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 NUM_GPUS = 1  # Set to 1 to use only one GPU
 BATCH_SIZE = 1024  # Adjust batch size as needed
 WARM_UP = 5
-NUM_STEP = 1000
+NUM_STEP = 100
 ACCUMULATION_STEPS = 10  # Number of steps to accumulate gradients (adjustable)
 
 def main():
